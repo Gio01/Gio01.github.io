@@ -59,11 +59,296 @@
 
     <h4 class="h4 container"> Hotel Rop Exploitation </h4>
     <div class="container">
-
-        
-
-        <p>When I got the challenge binary, the first thing I did was to run the program to see what was outputted.</p>
+        <p>When I got the challenge binary, the first thing I did was to run the program to see what was outputted.</p> 
     </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/rop.png" alt="rop.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div>
+
+    <br>
+
+    <div class="container">
+        <p>
+            We can see that we are greated with a message that lets us know that Hotel Rop is on main street at some memory
+            address location. Before actually going any further I like to check the security added to the binary so that I
+            know what attacks I am able to do. I use the checksec tool to see this security mechanisms.
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/sec.PNG" alt="sec.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div>
+
+    <br>
+
+    <div class="container">
+        <p>
+            Just by looking at the security mechanisms I notice that the NX bit is enabled which means that we cannot execute
+            things on the stack. PIE is also enebaled which means that the memory regions from the binary will be different 
+            on each execution of the binary. However we do not have a stack canary which means that we can overwrite the 
+            instruction pointer without being stopped by a canary. We can also see that there is partial RELRO so we could 
+            also use this for some Global Offset Table exploitation, but for this challenge the stack canary is what is the 
+            important bit.
+        </p>
+
+        <p>
+            Now that we know that there is no stack canary, we can begin to look at the binary through a dicompiler. I like
+            to use Ghidra so I will go with that.
+        </p>
+        
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/ghidra1.PNG" alt="ghidra1.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div>
+
+    <br>
+
+    <div class="container">
+        <p>
+            When looking at the binary with Ghidra, we can see that we have a main function with some function calls to 
+            alarm() and vuln(). We can also see that there is a printf() which is the welcome message we saw before. 
+            What I noticed here was that in the printf statement, the pointer address that is getting printed out references 
+            main so it seems that we have the location of main in memory which is going to be important. For this CTF, this 
+            alarm(10) function call was being used to simply limit the amount of time we had to exploit the binary. The vuln() 
+            function is where the vulnerability is located so we should take a look at that next.
+        </p>
+    </div>
+
+    <br>    
+
+    <div class="container text-center">
+        <img src="/img/ghidra2.PNG" alt="ghidra2.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div>
+    
+    <br>
+
+    <div class="container">
+        <p>
+            The first thing that I had noticed here was that we have a char buffer that can hold 28 bytes. There is 
+            also an fgets() function call that is addding some data from standard input and places into the buffer. 
+            However the issue with this is that we are allowed to store 0x100 == 256 bytes into the buffer even though 
+            the buffer can only hold 28 bytes. This means that we have a buffer overflow vulnerability and we also do not 
+            have a stack canary so we can overflow the buffer and overwrite the return address so that we can point the 
+            instruction pointer to where we want. That being said I could not see anything else that we could use for 
+            exploiting the binary so it took me a little bit to see what I needed to do after having found this. I looked 
+            through Ghidra and found that there were some functions in the binary that were not being used by main() and 
+            the vuln() functions.
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/ghidra3.PNG" alt="ghidra3.png" class="container text-center" style="height: 30%; width: 30%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            In Ghidra's symbol tree, I noticed that there was a california() function, a silicon_valley() function, and 
+            a loss() function which were never getting called so I looked into these functions with Ghidra to see what 
+            each of these functions were doing.
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/cali.PNG" alt="cali.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            I first began by looking at the california() function. What I saw here was that there was some assignement 
+            of values to some location called win_land. At first I was rather confused for what these hex values were 
+            supposed to be used for but I used python to convert then to characters so that I could see what they were. 
+            After running each of those hex values I realized that for the california() function, these values were 
+            '/', 'b', 'i', 'n'. At this point I began to think that maybe one of the other functions would have the 
+            rest of the "/bin/sh" string value and that these character values were getting stored into that win_land 
+            location.
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/silicon.PNG" alt="silicon.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            When looking at the silicon_valley() I began to be certain that what I was thinking was correct because 
+            it looked very similar to the set up of the california() function. Once again I used python to convert 
+            those hex values to a character and found that the hex values were the characters '/', 's', 'h', ''. 
+            That meant that we had the complete "/bin/sh" string needed to then spawn a shell but now the question 
+            is how?
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/loss.PNG" alt="loss.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            The last function was the loss() function. There are two conditional statements that are being checked 
+            and then after passing those two if statements then we have a system() call which references the &win_land 
+            location in memory. At this point I knew exactly what I needed to do. We need to jump from function to 
+            function starting with the california() function so that in the win_land we can get the correct order 
+            of the "/bin/sh" string being placed. That way once system() points to the win_land location we are 
+            effectively running system("/bin/sh") which will give us a shell.
+        </p>
+    </div>
+
+    <br>
+
+    <h5 class="container h5">Exploit:</h4>
+    <div class="container">
+        <p>
+            As also noted from the name of the challenge, we are using ROP to exploit this binary. Except instead 
+            of using gadgets we are just using the functions that exists in the binary (Code-Reuse) which makes 
+            this challenge easier.
+        </p>
+
+        <p>
+            For the actual exploit, I used python and pwntools to do this. The challenge itself was a remote challenge 
+            so I used pwntools to connect to it, but given that the CTF is already over I will simply get a shell to 
+            open a flag file that is in my local machine. However, the same exploit worked on the remote dCTF server 
+            which gave me the flag during the competition.
+        </p>
+
+        <p>
+            First I needed to figure out how to get the location of the functions in memory given that the PIE was 
+            enabled and the memory location for these functions would change on each execution. Luckily, we saw that 
+            the main() address is leaked at the beginning of the program which means that we need to get that location 
+            with pwntools to then be able to offset and get to next region in memory which will point to those functions.
+        </p>
+        
+        <p>
+            To find the offsets I used Ghidra to calculate the difference in the address location from main to the 
+            california and the silicon_valley functions. You could have done this with GDB as well since we only need 
+            to look at those memory locations. For example:
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/cali1.PNG" alt="cali1.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/main.PNG" alt="main.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            In Ghidra we get these addresses listed which we can use to simply find the difference. So to find the 
+            offset from california to main we need to subtract these two address locations. In the Python3 interactive 
+            shell we can do: int(0x1011dc) - int(0x10136d) == -401. (California - Main) This means that main is higher 
+            in the stack and that california is located at minus 401 from the address of main. Similarly we would do this 
+            for the silicon_valley() function.
+        </p> 
+        <p>
+            Once I was able to get the offsets then I could begin to write the exploit. First we need to fill up the 
+            buffer and overwrite the return address. To find the location of the return address I used GDB with the GEF 
+            attachment to see what is going on with the assembly and the memory locations used by the program. Specifically 
+            I want to look at the vuln() function to put a break after I send it some input.
+        </p>
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/vuln.PNG" alt="vuln.png" class="container text-center" style="height: 60%; width: 60%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            To begin I added a break at *vuln + 44 which is right after the fgets() function call which takes in the 
+            input we give it when first running the program. I then ran the program and gave the program 35 'A's through 
+            GDB. GDB then stopped the program at *vuln + 44 and we see the below stack layout.
+        </p> 
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/stack.PNG" alt="stack.png" class="container text-center" style="height: 60%; width: 60%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            The $rax register tells us where in memory my input is being stored so we should look into that 
+            region to see if I can find the location of the return address to overwrite.
+        </p> 
+    </div>
+
+    <br>
+
+    <div class="container text-center">
+        <img src="/img/rip.PNG" alt="rip.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            We can view what is at the $rax location to see where my input is. I can also print out information 
+            about the stack frame and we can see that the rip is set to the value 0x800139d and in memory we 
+            can see that this value is located at the third column of the address row 0x7ffffffee010 which 
+            means that we need to give the address more input until we can reach the return address. To be 
+            precise we need to send in 40 characters before we can reach the return address. The next question 
+            I had was how exactly is the stack getting laid out so that once I make the rip point somewhere else, 
+            it will know to point to the next function that I want. To figure this out I simply tried to place the 
+            address of california in the return address location and then follow that with the address of 
+            silicon_valley. Luckily I was able to find that after california gets called, the rip will then point 
+            to the next location I give it in the input. The way I was able to figure this out is by using the 
+            pwntools gdb.attach() function to be able to send in the input and then place a break with GDB. After 
+            successfully making each function jump I ended up with my final exploit that looks like this:
+        </p> 
+    </div>
+
+    <br>
+    <div class="container text-center">
+        <img src="/img/exploit.PNG" alt="exploit.png" class="container text-center" style="height: 50%; width: 50%;">
+    </div> 
+
+    <br>
+
+    <div class="container">
+        <p>
+            Once I ran this exploit I was successfully able to get a shell and then cat the flag file :D
+        </p> 
+    </div>
+
+    <br>
+
     <!--Footer section at the bottom of the page-->
     <footer class="container text-center fixed-bottom">
         
