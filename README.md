@@ -1,2 +1,2 @@
-# mdn-web-dev-learning
-Learning from the beginning of web dev, learning as I go to eventually then get better and upgrade to better tools. 
+# About
+This is my most up to date portfolio site where I describe a variety of my skills and experiences. 
